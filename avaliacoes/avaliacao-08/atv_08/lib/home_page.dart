@@ -1,11 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'cat_model.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-  static const API_URL = 'https://api.thecatapi.com/v1/images/search';
+  late final apiKEY;
+  late final apiURL;
+
+  HomePage({super.key}) {
+    apiKEY = dotenv.env['API_KEY'];
+    apiURL =
+        'https://api.thecatapi.com/v1/images/search?has_breeds=1&api_key=$apiKEY';
+  }
 
   @override
   State<HomePage> createState() => HomePageState();
@@ -22,7 +29,7 @@ class HomePageState extends State<HomePage> {
 
   Future<CatModel?> _fetchCat() async {
     try {
-      final response = await http.get(Uri.parse(HomePage.API_URL));
+      final response = await http.get(Uri.parse(widget.apiURL));
       if (response.statusCode == 200) {
         List<dynamic> responseData = jsonDecode(response.body);
         if (responseData.isNotEmpty) {
@@ -81,13 +88,17 @@ class HomePageState extends State<HomePage> {
                       style: const TextStyle(
                         fontSize: 18,
                         fontStyle: FontStyle.italic,
+                        color: Colors.deepOrange,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 10),
                     Text(
                       'Temperamento: ${cat.temp ?? 'Não informado'}',
-                      style: const TextStyle(fontSize: 18),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Colors.deepOrange,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 10),

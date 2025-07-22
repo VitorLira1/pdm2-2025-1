@@ -21,6 +21,8 @@ class CatModel {
     String? breedTemperament;
     String? breedDescription;
 
+    print('\n${json}\n');
+
     if (json['breeds'] != null && (json['breeds'] as List).isNotEmpty) {
       final breedData = (json['breeds'] as List)[0];
       breedName = breedData['name'];
