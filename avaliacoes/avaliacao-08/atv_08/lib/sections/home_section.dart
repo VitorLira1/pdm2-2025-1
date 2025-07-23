@@ -119,7 +119,7 @@ class HomeSectionState extends ConsumerState<HomeSection> {
       valueListenable: isLoading,
       builder: (context, value, child) {
         if (value) {
-          Center(
+          return Center(
             child: const CircularProgressIndicator(color: Colors.deepPurple),
           );
         }
