@@ -15,14 +15,19 @@ class CatModel {
     required this.desc,
   });
 
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CatModel && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
+
   factory CatModel.fromJSON(Map<String, dynamic> json) {
     String? breedName;
     String? breedOrigin;
     String? breedTemperament;
     String? breedDescription;
-
-    print('\n${json}\n');
-
     if (json['breeds'] != null && (json['breeds'] as List).isNotEmpty) {
       final breedData = (json['breeds'] as List)[0];
       breedName = breedData['name'];
@@ -30,7 +35,6 @@ class CatModel {
       breedTemperament = breedData['temperament'];
       breedDescription = breedData['description'];
     }
-
     return CatModel(
       id: json['id'],
       url: json['url'],

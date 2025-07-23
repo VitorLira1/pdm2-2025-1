@@ -1,4 +1,4 @@
-import 'package:atv_08/home_page.dart';
+import 'package:atv_08/widgets/section_wrapper.dart';
 import 'package:flutter/material.dart';
 
 class MyApp extends StatelessWidget {
@@ -11,7 +11,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: HomePage(),
+      home: SectionWrapper(),
     );
   }
 }
