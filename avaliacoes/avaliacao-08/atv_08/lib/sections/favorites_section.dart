@@ -102,7 +102,7 @@ class FavoriteSectionState extends ConsumerState<FavoritesSection> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Gatos Favoritos',
+          'Favorite Cats',
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: Colors.deepPurple,
@@ -110,7 +110,7 @@ class FavoriteSectionState extends ConsumerState<FavoritesSection> {
       body: length == 0
           ? const Center(
               child: Text(
-                'Nenhum gato favorito ainda.',
+                'No favorite cats yet',
                 style: TextStyle(fontSize: 20, color: Colors.grey),
               ),
             )

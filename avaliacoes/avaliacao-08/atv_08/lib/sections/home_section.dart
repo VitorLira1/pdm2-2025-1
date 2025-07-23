@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:atv_08/favorite_notifier.dart';
+import 'package:atv_08/widgets/last_cat_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,11 +8,11 @@ import 'package:http/http.dart' as http;
 import '../models/cat_model.dart';
 
 class HomeSection extends ConsumerStatefulWidget {
-  late final apiKEY;
-  late final apiURL;
+  late final String apiKEY;
+  late final String apiURL;
 
   HomeSection({super.key}) {
-    apiKEY = dotenv.env['API_KEY'];
+    apiKEY = dotenv.env['API_KEY']!;
     apiURL =
         'https://api.thecatapi.com/v1/images/search?has_breeds=1&api_key=$apiKEY';
   }
@@ -21,28 +22,35 @@ class HomeSection extends ConsumerStatefulWidget {
 }
 
 class HomeSectionState extends ConsumerState<HomeSection> {
-  Future<CatModel?>? _currentCatFuture;
+  ValueNotifier<bool> isLoading = ValueNotifier(false);
+  ValueNotifier<bool> isFavorite = ValueNotifier(false);
 
   @override
   void initState() {
     super.initState();
   }
 
-  Future<CatModel?> _fetchCat() async {
+  Future<void> _fetchCatAndSetState() async {
+    final lastCatState = ref.read(lastFetchedCatProvider.notifier);
     try {
+      isLoading.value = true;
       final response = await http.get(Uri.parse(widget.apiURL));
       if (response.statusCode == 200) {
         List<dynamic> responseData = jsonDecode(response.body);
         if (responseData.isNotEmpty) {
-          return CatModel.fromJSON(responseData[0]);
+          final fetchedCat = CatModel.fromJSON(responseData[0]);
+          lastCatState.state = fetchedCat;
+          isLoading.value = false;
+        } else {
+          lastCatState.state = null;
         }
-        return null;
       } else {
-        throw Exception('Falha no carregamento: ${response.statusCode}');
+        lastCatState.state = null;
+        print('Falha no carregamento: ${response.statusCode}');
       }
     } catch (e) {
+      lastCatState.state = null;
       print('Erro ao buscar gato: $e');
-      throw Exception('Erro ao carregar o gato: $e');
     }
   }
 
@@ -52,29 +60,45 @@ class HomeSectionState extends ConsumerState<HomeSection> {
     CatModel cat,
   ) {
     final isFav = notifier.isFavorite(cat);
-    if (isFav.value) {
+    if (isFav) {
       notifier.removeItem(cat);
-      isFav.value = false;
+      isFavorite.value = false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${cat.name ?? 'O gato'} removido dos favoritos!'),
+        ),
+      );
     } else {
       notifier.addItem(cat);
-      isFav.value = true;
+      isFavorite.value = true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${cat.name ?? 'O gato'} adicionado aos favoritos!'),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final lastCat = ref.watch(lastFetchedCatProvider);
     final favoriteNotifier = ref.watch(favoriteListProvider.notifier);
+    isFavorite.value = lastCat != null
+        ? favoriteNotifier.isFavorite(lastCat)
+        : false;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Give Me A Cat'),
+        title: const Text(
+          'Give Me A Cat',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.deepPurple,
       ),
-      body: getBody(favoriteNotifier),
+      body: getBody(lastCat, favoriteNotifier),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          setState(() {
-            _currentCatFuture = _fetchCat();
-          });
+          _fetchCatAndSetState();
         },
         backgroundColor: Colors.deepOrange,
         child: const Icon(Icons.pets),
@@ -82,71 +106,66 @@ class HomeSectionState extends ConsumerState<HomeSection> {
     );
   }
 
-  Widget getBody(FavoriteNotifier favoriteNotifier) {
-    if (_currentCatFuture == null) {
-      return Center(
+  Widget getBody(CatModel? cat, FavoriteNotifier favoriteNotifier) {
+    if (cat == null) {
+      return const Center(
         child: Text(
-          'Press the button to get a cat',
+          'Press the button to get a cat!',
           style: TextStyle(fontSize: 20, color: Colors.grey),
         ),
       );
     }
-    return Center(
-      child: FutureBuilder<CatModel?>(
-        future: _currentCatFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const CircularProgressIndicator(color: Colors.deepPurple);
-          } else if (snapshot.hasError) {
-            return Text('Erro: ${snapshot.error}');
-          } else if (snapshot.hasData && snapshot.data != null) {
-            final cat = snapshot.data!;
-            ValueNotifier<bool> isFavorite = favoriteNotifier.isFavorite(cat);
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12.0),
-                    child: getImage(cat),
+    return ValueListenableBuilder(
+      valueListenable: isLoading,
+      builder: (context, value, child) {
+        if (value) {
+          Center(
+            child: const CircularProgressIndicator(color: Colors.deepPurple),
+          );
+        }
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12.0),
+                  child: getImage(cat),
+                ),
+                const SizedBox(height: 20),
+                getStack(cat, favoriteNotifier),
+                const SizedBox(height: 10),
+                Text(
+                  'Origem: ${cat.origin ?? 'Não informada'}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.deepOrange,
                   ),
-                  const SizedBox(height: 20),
-                  getStack(cat, favoriteNotifier, isFavorite),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Origem: ${cat.origin ?? 'Não informada'}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.deepOrange,
-                    ),
-                    textAlign: TextAlign.center,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Temperamento: ${cat.temp ?? 'Não informado'}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.deepOrange,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Temperamento: ${cat.temp ?? 'Não informado'}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      color: Colors.deepOrange,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    cat.desc ?? 'Nenhuma descrição disponível para esta raça.',
-                    style: const TextStyle(fontSize: 16),
-                    textAlign: TextAlign.justify,
-                  ),
-                ],
-              ),
-            );
-          } else {
-            return const Text('Pressione o botão para ver um gato!');
-          }
-        },
-      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  cat.desc ?? 'Nenhuma descrição disponível para esta raça.',
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.justify,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -169,11 +188,7 @@ class HomeSectionState extends ConsumerState<HomeSection> {
     );
   }
 
-  Stack getStack(
-    CatModel cat,
-    FavoriteNotifier favoriteNotifier,
-    ValueNotifier<bool> isFavorite,
-  ) {
+  Stack getStack(CatModel cat, FavoriteNotifier favoriteNotifier) {
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -192,18 +207,14 @@ class HomeSectionState extends ConsumerState<HomeSection> {
           right: 10,
           child: ValueListenableBuilder(
             valueListenable: isFavorite,
-            builder: (context, isFav, _) {
-              return IconButton(
-                onPressed: () => {
-                  handleFavorite(favoriteNotifier, context, cat),
-                },
-                icon: Icon(
-                  isFav ? Icons.favorite : Icons.favorite_border,
-                  color: Colors.deepOrange,
-                  size: 30,
-                ),
-              );
-            },
+            builder: (context, value, child) => IconButton(
+              onPressed: () => {handleFavorite(favoriteNotifier, context, cat)},
+              icon: Icon(
+                isFavorite.value ? Icons.favorite : Icons.favorite_border,
+                color: Colors.deepOrange,
+                size: 30,
+              ),
+            ),
           ),
         ),
       ],
